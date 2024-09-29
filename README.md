@@ -26,7 +26,7 @@ It uses the [Discord Webhook](https://discord.com/developers/docs/resources/webh
 
 ### Example message
 
-![Example message](./images/example_message.png)
+![Example message](./example_message.png)
 
 ## Getting Started
 
