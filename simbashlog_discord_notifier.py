@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
-# TODO: Add some notes about the notifier
 '''
 NOTES:
 
 For more information:
-- ...
+- https://pypi.org/project/discord-webhook/
 '''
 
 import sys
@@ -13,23 +12,11 @@ from enum import Enum
 import simbashlog_notify_helper as snh # type: ignore
 
 # simbashlog-notifier specific imports
-# TODO: Add your own imports
-#import ...
+from discord_webhook import DiscordWebhook, DiscordEmbed # type: ignore
 
-'''
-Try to avoid modifying the following:
-- SIMBASHLOG_NOTIFIER_NAME
-- NotifierConfigField
-- load_config
-- create_message
-- perform_action
-'''
-
-# TODO: Replace the value with the name of your notifier but keep the prefix 'simbashlog-' and the suffix '-notifier'
-SIMBASHLOG_NOTIFIER_NAME = "simbashlog-example-notifier"
+SIMBASHLOG_NOTIFIER_NAME = "simbashlog-discord-notifier"
 
 class NotifierConfigField(Enum):
-    # TODO: Here you should add your own configuration fields based on the `setup.py` function `NotifierConfig.get_data_for_config_file()`
     # General
     MIN_REQUIRED_LOG_LEVEL = "min_required_log_level"
     SHOW_IN_CONSOLE_SENT_MESSAGE = "show_in_console_sent_message"
@@ -46,7 +33,7 @@ class NotifierConfigField(Enum):
     SHOW_IN_FOOTER_NOTIFIER_NAME = "show_in_footer_notifier_name"
 
     # Notifier specific
-    EXAMPLE_KEY = "example_key"
+    WEBHOOK_URL = "webhook_url"
 
     def __str__(self):
         return self.value
@@ -59,7 +46,6 @@ def load_config() -> snh.NotifierConfig:
         sys.exit(1)
 
     return snh.NotifierConfig(
-        # TODO: Don't forget to adjust the configuration based on the `NotifierConfigField` enum
         # General
         min_required_log_level=config_data[
             NotifierConfigField.MIN_REQUIRED_LOG_LEVEL.value
@@ -99,8 +85,8 @@ def load_config() -> snh.NotifierConfig:
         ].lower() == "true",
 
         # Notifier specific
-        example_key=config_data[
-            NotifierConfigField.EXAMPLE_KEY.value
+        webhook_url=config_data[
+            NotifierConfigField.WEBHOOK_URL.value
         ]
     )
 
@@ -108,26 +94,19 @@ def create_message(config: snh.NotifierConfig, stored_log_info: snh.StoredLogInf
     builder = snh.MessageBuilder(
         stored_log_info = stored_log_info,
         notifier_name = SIMBASHLOG_NOTIFIER_NAME,
-        # TODO: Replace the lambda functions with your own formatting
         apply_heading = lambda content: f"{content}",
         apply_subheading = lambda content: f"\n{content}\n",
         apply_paragraph = lambda content: f"\n{content}\n",
-        apply_code = lambda content: f"\n{content}\n",
+        apply_code = lambda content: f"{content}",
         apply_bold = lambda content: f"{content}",
         apply_italic = lambda content: f"{content}"
     )
 
-    builder.add_header(
-        show_pid=config.show_in_header_pid
-    ).add_body(
+    builder.add_body(
         show_log_file_result=config.show_in_body_log_file_result,
         show_log_file_content=config.show_in_body_log_file_content,
         show_summary_for_pid=config.show_in_body_summary_for_pid,
         show_summary_for_log_file=config.show_in_body_summary_for_log_file
-    ).add_footer(
-        show_log_file_names=config.show_in_footer_log_file_names,
-        show_host=config.show_in_footer_host,
-        show_notifier_name=config.show_in_footer_notifier_name
     )
 
     return builder.build()
@@ -145,9 +124,48 @@ def perform_action(config: snh.NotifierConfig, stored_log_info: snh.StoredLogInf
             print("No message sent.")
             sys.exit(0)
 
-        # TODO: Here you can add your own action
+        webhook = DiscordWebhook(url=config.webhook_url)
+
+        embed = DiscordEmbed(
+            title=snh.MessageBuilder(
+                    stored_log_info=stored_log_info,
+                    notifier_name=SIMBASHLOG_NOTIFIER_NAME,
+                ).add_header(
+                    show_pid=config.show_in_header_pid
+                ).build(),
+            description=message,
+            color=242424
+        )
+
+        if config.show_in_footer_log_file_names:
+            if stored_log_info.log_file is not None:
+                embed.add_embed_field(
+                    name="Log File",
+                    value="```" + stored_log_info.log_file + "```"
+                )
+            if stored_log_info.json_log_file is not None:
+                embed.add_embed_field(
+                    name="JSON Log File",
+                    value="```" + stored_log_info.json_log_file + "```"
+                )
+
+        embed.set_footer(
+            snh.MessageBuilder(
+                stored_log_info=stored_log_info,
+                notifier_name=SIMBASHLOG_NOTIFIER_NAME,
+            ).add_footer(
+                show_log_file_names=False,
+                show_host=config.show_in_footer_host,
+                show_notifier_name=config.show_in_footer_notifier_name
+            ).build()
+        )
+        
+        webhook.add_embed(embed)
+
+        response = webhook.execute()
+
         if config.show_in_console_sent_message:
-            print(message)
+            print(f"Message sent to Discord: {response}\n{message}")
 
 # ░░░░░░░░░░░░░░░░░░░░░▓▓▓░░░░░░░░░░░░░░░░░░░░░░
 # ░░                                          ░░
